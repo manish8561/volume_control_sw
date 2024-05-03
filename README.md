@@ -1,5 +1,5 @@
 # Desktop Uitilty Volume Control App
-this is desktop volume control app for your system developed in golang with fyne lib.
+this is desktop volume control app for your system developed in golang with fyne lib. Short cut to close window
 
 ## Dependencies go packages
 fyne/v2

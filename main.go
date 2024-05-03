@@ -22,6 +22,7 @@ func handleSliderChange(value float64, label *widget.Label) {
 		fmt.Printf("set volume failed: %+v", err)
 	}
 }
+
 // create desktop layout for the code
 func desktopLayout(hello *widget.Label, slider *widget.Slider, label2 *widget.Label, btn1 *widget.Button) *fyne.Container {
 	return container.NewGridWithRows(2,
@@ -78,7 +79,7 @@ func main() {
 	// rendering menu
 	mainMenu := fyne.NewMainMenu(fyne.NewMenu("File",
 		fyne.NewMenuItem("Show", func() {
-			hello.SetText("waiting for this feature")
+			hello.SetText("Waiting for this feature!")
 		})))
 
 	slider := widget.NewSlider(0, 100)
@@ -131,6 +132,12 @@ func main() {
 		vol -= 1
 		slider.SetValue(float64(vol))
 	})
+	// Define custom keyboard shortcut for the button (e.g., Ctrl+w) to close window
+	ctrlKeyW := &desktop.CustomShortcut{KeyName: fyne.KeyW, Modifier: fyne.KeyModifierControl}
+	w.Canvas().AddShortcut(ctrlKeyW, func(shortcut fyne.Shortcut) {
+		a.Quit()
+	})
+	// show and run window
 	w.ShowAndRun()
 	// w.Show()
 	// a.Run()
