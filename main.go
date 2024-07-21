@@ -2,16 +2,129 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	volume "github.com/itchyny/volume-go"
+
+	"github.com/gordonklaus/portaudio"
 )
+
+/**
+ * get input and output devices portaudio
+ */
+func getInputOutputDevices() (in, out []string) {
+	input, output := make([]string, 3), make([]string, 3)
+
+	// Initialize PortAudio
+	if err := portaudio.Initialize(); err != nil {
+		fmt.Println("Initialize 1: ", err)
+	}
+	defer portaudio.Terminate()
+
+	// Get a list of all devices
+	devices, err := portaudio.Devices()
+	if err != nil {
+		fmt.Println("devices error1: ", err)
+	}
+	// List all devices
+	for i, device := range devices {
+		fmt.Printf("%d: %s\n", i, device.Name)
+		fmt.Println("--------------------------------------------")
+		if device.MaxInputChannels > 0 {
+			fmt.Printf("  Input channels: %d\n", device.MaxInputChannels)
+			input = append(input, device.Name)
+		}
+		if device.MaxOutputChannels > 0 {
+			fmt.Printf("  Output channels: %d\n", device.MaxOutputChannels)
+			output = append(output, device.Name)
+
+		}
+		fmt.Printf("  Default sample rate: %f\n\n", device.DefaultSampleRate)
+
+	}
+	return input, output
+}
+
+/**
+ * get input and output devices portaudio
+ */
+func setInputOutputDevices(deviceName string, deviceType int) {
+
+	// Initialize PortAudio
+	if err := portaudio.Initialize(); err != nil {
+		fmt.Println("Initialize 2: ", err)
+	}
+	defer portaudio.Terminate()
+
+	// Get a list of all devices
+	devices, err := portaudio.Devices()
+	if err != nil {
+		fmt.Println("devices error2: ", err)
+	}
+
+	// List all devices
+	for i, device := range devices {
+		if strings.ToLower(device.Name) == strings.ToLower(deviceName) && deviceType == 1 && device.MaxInputChannels > 0 {
+			fmt.Printf("Input channels: %d\n", device.MaxInputChannels, i)
+			// Set up a stream with the selected devices
+			stream, err := portaudio.OpenStream(portaudio.StreamParameters{
+				Input: portaudio.StreamDeviceParameters{
+					Device:   device,
+					Channels: device.MaxInputChannels,
+					Latency:  device.DefaultLowInputLatency,
+				},
+				SampleRate:      device.DefaultSampleRate,
+				FramesPerBuffer: 64,
+			}, processAudio)
+
+			if err != nil {
+				fmt.Println("Input device setting: ", err)
+			}
+			defer stream.Close()
+			return
+
+		}
+		if strings.ToLower(device.Name) == strings.ToLower(deviceName) && deviceType == 2 && device.MaxOutputChannels > 0 {
+			
+			fmt.Printf("Output channels: %d\n", device.MaxOutputChannels, i)
+
+			// Set up a stream with the selected devices
+			stream, err := portaudio.OpenStream(portaudio.StreamParameters{
+
+				Output: portaudio.StreamDeviceParameters{
+					Device:   device,
+					Channels: device.MaxOutputChannels,
+					Latency:  device.DefaultLowOutputLatency,
+				},
+				SampleRate:      device.DefaultSampleRate,
+				FramesPerBuffer: 64,
+			}, processAudio)
+
+			if err != nil {
+				fmt.Println("Output device setting: ", err)
+			}
+			defer stream.Close()
+			return
+		}
+
+	}
+
+}
+
+func processAudio(in, out []float32) {
+	// This is where you'd process the audio data
+	for i := range out {
+		out[i] = in[i]
+	}
+}
 
 // show volume from slider
 func handleSliderChange(value float64, label *widget.Label) {
@@ -24,13 +137,20 @@ func handleSliderChange(value float64, label *widget.Label) {
 }
 
 // create desktop layout for the code
-func desktopLayout(hello *widget.Label, slider *widget.Slider, label2 *widget.Label, btn1 *widget.Button) *fyne.Container {
+func desktopLayout(hello *widget.Label, slider *widget.Slider, label2 *widget.Label, btn1 *widget.Button, comboOut *widget.Select, comboIn *widget.Select) *fyne.Container {
+	tabs := container.NewAppTabs(
+		container.NewTabItem("Output Devices", container.NewVBox(comboOut)),
+		container.NewTabItem("Input Devices", container.NewVBox(comboIn)),
+	)
+	tabs.SetTabLocation(container.TabLocationTop)
+
 	return container.NewGridWithRows(2,
-		container.NewCenter(hello),
 		container.NewVBox(
+			container.NewCenter(hello),
 			container.NewHBox(label2, btn1),
 			slider,
 		),
+		container.New(layout.NewVBoxLayout(), tabs),
 	)
 }
 
@@ -80,7 +200,8 @@ func main() {
 	mainMenu := fyne.NewMainMenu(fyne.NewMenu("File",
 		fyne.NewMenuItem("Show", func() {
 			hello.SetText("Waiting for this feature!")
-		})))
+		}),
+	))
 
 	slider := widget.NewSlider(0, 100)
 	slider.SetValue(float64(vol))
@@ -103,8 +224,26 @@ func main() {
 	checkMuteUnmute(btn1, false)
 
 	w.SetMainMenu(mainMenu)
-	w.SetContent(desktopLayout(hello, slider, valueLabel, btn1))
-	w.Resize(fyne.NewSize(600, 200))
+
+	// input output devices
+	input, output := getInputOutputDevices()
+
+	//adding drop down for input devices
+	comboIn := widget.NewSelect(input, func(value string) {
+		fmt.Println("Select set to", value)
+		setInputOutputDevices(value, 1)
+	})
+	// comboIn.SetSelected("default")
+
+	//adding drop down for output devices
+	comboOut := widget.NewSelect(output, func(value string) {
+		fmt.Println("Select set to", value)
+		setInputOutputDevices(value, 2)
+	})
+	// comboOut.SetSelected("default")
+
+	w.SetContent(desktopLayout(hello, slider, valueLabel, btn1, comboOut, comboIn))
+	w.Resize(fyne.NewSize(600, 300))
 
 	// Define custom keyboard shortcut for the button (e.g., Ctrl+KeyUp)
 	ctrlKeyUp := &desktop.CustomShortcut{KeyName: fyne.KeyUp, Modifier: fyne.KeyModifierControl}
