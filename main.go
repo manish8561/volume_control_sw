@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -21,7 +22,7 @@ import (
  * get input and output devices portaudio
  */
 func getInputOutputDevices() (in, out []string) {
-	input, output := make([]string, 3), make([]string, 3)
+	input, output := []string{}, []string{}
 
 	// Initialize PortAudio
 	if err := portaudio.Initialize(); err != nil {
@@ -39,11 +40,11 @@ func getInputOutputDevices() (in, out []string) {
 		fmt.Printf("%d: %s\n", i, device.Name)
 		fmt.Println("--------------------------------------------")
 		if device.MaxInputChannels > 0 {
-			fmt.Printf("  Input channels: %d\n", device.MaxInputChannels)
+			fmt.Println("  Input channels:", device.Name)
 			input = append(input, device.Name)
 		}
 		if device.MaxOutputChannels > 0 {
-			fmt.Printf("  Output channels: %d\n", device.MaxOutputChannels)
+			fmt.Println("  Output channels:", device.Name)
 			output = append(output, device.Name)
 
 		}
@@ -74,11 +75,14 @@ func setInputOutputDevices(deviceName string, deviceType int) {
 	for i, device := range devices {
 		if strings.ToLower(device.Name) == strings.ToLower(deviceName) && deviceType == 1 && device.MaxInputChannels > 0 {
 			fmt.Printf("Input channels: %d\n", device.MaxInputChannels, i)
+			fmt.Printf("%+v", device)
+			fmt.Println()
+			fmt.Printf("%+v", device.HostApi)
 			// Set up a stream with the selected devices
 			stream, err := portaudio.OpenStream(portaudio.StreamParameters{
 				Input: portaudio.StreamDeviceParameters{
 					Device:   device,
-					Channels: device.MaxInputChannels,
+					Channels: 1,
 					Latency:  device.DefaultLowInputLatency,
 				},
 				SampleRate:      device.DefaultSampleRate,
@@ -88,20 +92,26 @@ func setInputOutputDevices(deviceName string, deviceType int) {
 			if err != nil {
 				fmt.Println("Input device setting: ", err)
 			}
+			if err != nil {
+				log.Fatalf("Error opening stream: %v", err)
+			}
 			defer stream.Close()
 			return
 
 		}
 		if strings.ToLower(device.Name) == strings.ToLower(deviceName) && deviceType == 2 && device.MaxOutputChannels > 0 {
-			
-			fmt.Printf("Output channels: %d\n", device.MaxOutputChannels, i)
+
+			fmt.Printf("Output channels: %d\n", i)
+			fmt.Printf("%+v", device)
+			fmt.Println()
+			fmt.Printf("%+v", device.HostApi)
 
 			// Set up a stream with the selected devices
 			stream, err := portaudio.OpenStream(portaudio.StreamParameters{
 
 				Output: portaudio.StreamDeviceParameters{
 					Device:   device,
-					Channels: device.MaxOutputChannels,
+					Channels: 1,
 					Latency:  device.DefaultLowOutputLatency,
 				},
 				SampleRate:      device.DefaultSampleRate,
@@ -110,6 +120,9 @@ func setInputOutputDevices(deviceName string, deviceType int) {
 
 			if err != nil {
 				fmt.Println("Output device setting: ", err)
+			}
+			if err != nil {
+				log.Fatalf("Error opening stream: %v", err)
 			}
 			defer stream.Close()
 			return
@@ -233,14 +246,14 @@ func main() {
 		fmt.Println("Select set to", value)
 		setInputOutputDevices(value, 1)
 	})
-	// comboIn.SetSelected("default")
+	comboIn.SetSelected("default")
 
 	//adding drop down for output devices
 	comboOut := widget.NewSelect(output, func(value string) {
 		fmt.Println("Select set to", value)
 		setInputOutputDevices(value, 2)
 	})
-	// comboOut.SetSelected("default")
+	comboOut.SetSelected("default")
 
 	w.SetContent(desktopLayout(hello, slider, valueLabel, btn1, comboOut, comboIn))
 	w.Resize(fyne.NewSize(600, 300))
