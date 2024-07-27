@@ -3,8 +3,8 @@ module github.com/manish8561/volume_control_sw
 go 1.22.2
 
 require (
+	fyne.io/fyne v1.4.3
 	fyne.io/fyne/v2 v2.5.0
-	github.com/gordonklaus/portaudio v0.0.0-20230709114228-aafa478834f5
 	github.com/itchyny/volume-go v0.2.2
 )
 

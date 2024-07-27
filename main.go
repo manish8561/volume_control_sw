@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
-	"log"
+	"os/exec"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -14,129 +16,66 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	volume "github.com/itchyny/volume-go"
-
-	"github.com/gordonklaus/portaudio"
 )
 
-/**
- * get input and output devices portaudio
- */
-func getInputOutputDevices() (in, out []string) {
-	input, output := []string{}, []string{}
-
-	// Initialize PortAudio
-	if err := portaudio.Initialize(); err != nil {
-		fmt.Println("Initialize 1: ", err)
+// get default sink and source
+func getDefaultDevice(deviceType string) (string, error) {
+	var cmd *exec.Cmd
+	if deviceType == "sinks" {
+		cmd = exec.Command("pactl", "get-default-sink")
+	} else if deviceType == "sources" {
+		cmd = exec.Command("pactl", "get-default-source")
+	} else {
+		return "", fmt.Errorf("invalid device type: %s", deviceType)
 	}
-	defer portaudio.Terminate()
 
-	// Get a list of all devices
-	devices, err := portaudio.Devices()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Println("devices error1: ", err)
+		return "", fmt.Errorf("failed to switch %s: %v, output: %s", deviceType, err, output)
 	}
-	// List all devices
-	for i, device := range devices {
-		fmt.Printf("%d: %s\n", i, device.Name)
-		fmt.Println("--------------------------------------------")
-		if device.MaxInputChannels > 0 {
-			fmt.Println("  Input channels:", device.Name)
-			input = append(input, device.Name)
-		}
-		if device.MaxOutputChannels > 0 {
-			fmt.Println("  Output channels:", device.Name)
-			output = append(output, device.Name)
-
-		}
-		fmt.Printf("  Default sample rate: %f\n\n", device.DefaultSampleRate)
-
-	}
-	return input, output
+	return string(output), nil
 }
 
-/**
- * get input and output devices portaudio
- */
-func setInputOutputDevices(deviceName string, deviceType int) {
-
-	// Initialize PortAudio
-	if err := portaudio.Initialize(); err != nil {
-		fmt.Println("Initialize 2: ", err)
+// switchPulseAudioDevice switches the active PulseAudio sink or source
+func switchPulseAudioDevice(deviceType, deviceName string) error {
+	var cmd *exec.Cmd
+	if deviceType == "sinks" {
+		cmd = exec.Command("pactl", "set-default-sink", deviceName)
+	} else if deviceType == "sources" {
+		cmd = exec.Command("pactl", "set-default-source", deviceName)
+	} else {
+		return fmt.Errorf("invalid device type: %s", deviceType)
 	}
-	defer portaudio.Terminate()
 
-	// Get a list of all devices
-	devices, err := portaudio.Devices()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Println("devices error2: ", err)
+		return fmt.Errorf("failed to switch %s: %v, output: %s", deviceType, err, output)
 	}
-
-	// List all devices
-	for i, device := range devices {
-		if strings.ToLower(device.Name) == strings.ToLower(deviceName) && deviceType == 1 && device.MaxInputChannels > 0 {
-			fmt.Printf("Input channels: %d\n", device.MaxInputChannels, i)
-			fmt.Printf("%+v", device)
-			fmt.Println()
-			fmt.Printf("%+v", device.HostApi)
-			// Set up a stream with the selected devices
-			stream, err := portaudio.OpenStream(portaudio.StreamParameters{
-				Input: portaudio.StreamDeviceParameters{
-					Device:   device,
-					Channels: 1,
-					Latency:  device.DefaultLowInputLatency,
-				},
-				SampleRate:      device.DefaultSampleRate,
-				FramesPerBuffer: 64,
-			}, processAudio)
-
-			if err != nil {
-				fmt.Println("Input device setting: ", err)
-			}
-			if err != nil {
-				log.Fatalf("Error opening stream: %v", err)
-			}
-			defer stream.Close()
-			return
-
-		}
-		if strings.ToLower(device.Name) == strings.ToLower(deviceName) && deviceType == 2 && device.MaxOutputChannels > 0 {
-
-			fmt.Printf("Output channels: %d\n", i)
-			fmt.Printf("%+v", device)
-			fmt.Println()
-			fmt.Printf("%+v", device.HostApi)
-
-			// Set up a stream with the selected devices
-			stream, err := portaudio.OpenStream(portaudio.StreamParameters{
-
-				Output: portaudio.StreamDeviceParameters{
-					Device:   device,
-					Channels: 1,
-					Latency:  device.DefaultLowOutputLatency,
-				},
-				SampleRate:      device.DefaultSampleRate,
-				FramesPerBuffer: 64,
-			}, processAudio)
-
-			if err != nil {
-				fmt.Println("Output device setting: ", err)
-			}
-			if err != nil {
-				log.Fatalf("Error opening stream: %v", err)
-			}
-			defer stream.Close()
-			return
-		}
-
-	}
-
+	return nil
 }
 
-func processAudio(in, out []float32) {
-	// This is where you'd process the audio data
-	for i := range out {
-		out[i] = in[i]
+// getPulseAudioDevices lists all PulseAudio sinks or sources
+func getPulseAudioDevices(deviceType string) ([]string, error) {
+	cmd := exec.Command("pactl", "list", "short", deviceType)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("failed to list %s: %v", deviceType, err)
 	}
+
+	var devices []string
+	scanner := bufio.NewScanner(&out)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) > 1 {
+			devices = append(devices, fields[1])
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %v", deviceType, err)
+	}
+
+	return devices, nil
 }
 
 // show volume from slider
@@ -199,7 +138,7 @@ func main() {
 	// on load volume
 	vol, err := volume.GetVolume()
 	if err != nil {
-		fmt.Printf("get volume failed: %+v", err)
+		fmt.Printf("Get volume failed: %+v", err)
 	}
 
 	a := app.New()
@@ -238,24 +177,50 @@ func main() {
 
 	w.SetMainMenu(mainMenu)
 
-	// input output devices
-	input, output := getInputOutputDevices()
+	// Get available sinks (output devices)
+	output, err := getPulseAudioDevices("sinks")
+	if err != nil {
+		fmt.Printf("Error getting sinks: %v", err)
+	}
+	// Get available sources (input devices)
+	input, err := getPulseAudioDevices("sources")
+	if err != nil {
+		fmt.Printf("Error getting sources: %v", err)
+	}
 
 	//adding drop down for input devices
 	comboIn := widget.NewSelect(input, func(value string) {
-		fmt.Println("Select set to", value)
-		setInputOutputDevices(value, 1)
+		// fmt.Println("Select set to:-> ", value)
+		switchPulseAudioDevice("sources", value)
 	})
-	comboIn.SetSelected("default")
+	//default input device
+	defaultDevice, err := getDefaultDevice("sources")
+	if err != nil {
+		fmt.Printf("Error getting sources: %v", err)
+	}
+
+	comboIn.SetSelected(defaultDevice)
 
 	//adding drop down for output devices
 	comboOut := widget.NewSelect(output, func(value string) {
-		fmt.Println("Select set to", value)
-		setInputOutputDevices(value, 2)
-	})
-	comboOut.SetSelected("default")
+		// fmt.Println("Select set to:-> ", value)
+		switchPulseAudioDevice("sinks", value)
 
-	w.SetContent(desktopLayout(hello, slider, valueLabel, btn1, comboOut, comboIn))
+	})
+	defaultDevice, err = getDefaultDevice("sinks")
+	if err != nil {
+		fmt.Printf("Error getting sinks: %v", err)
+	}
+	comboOut.SetSelected(defaultDevice)
+
+	content := desktopLayout(hello, slider, valueLabel, btn1, comboOut, comboIn)
+
+	// Create a background rectangle with a specified color
+
+	// Create a padding container using layout.NewPadded
+	padding := container.New(layout.NewPaddedLayout(), content)
+
+	w.SetContent(padding)
 	w.Resize(fyne.NewSize(600, 300))
 
 	// Define custom keyboard shortcut for the button (e.g., Ctrl+KeyUp)

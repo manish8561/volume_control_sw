@@ -5,21 +5,18 @@ This is desktop volume control app for your system developed in golang with fyne
 Link to download app.
 https://apps.fyne.io/apps/com.github.manish8561.volume_control_sw.html
 
-## Pre-requirements for OS
-for macOS
+## Operating System Dependency
+
+For Linux
 ```bash
-brew install portaudio
+sudo apt install pulseaudio-utils
 ```
-for linux/ubuntu
-```bash
-sudo apt install portaudio19-dev
-```
+For MacOS, Windows coming soon.
 
 ## Dependencies go packages
 
 fyne/v2
 volume
-github.com/gordonklaus/portaudio
 
 ### To run in dev enviroment
 
