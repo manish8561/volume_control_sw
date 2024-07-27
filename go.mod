@@ -3,7 +3,6 @@ module github.com/manish8561/volume_control_sw
 go 1.22.2
 
 require (
-	fyne.io/fyne v1.4.3
 	fyne.io/fyne/v2 v2.5.0
 	github.com/itchyny/volume-go v0.2.2
 )
