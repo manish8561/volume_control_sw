@@ -32,7 +32,7 @@ mobile view
 go run -tags mobile main.go
 ```
 
-### Create package using fyne for ubuntu
+### Create build using fyne for ubuntu
 
 fyne package -os linux -icon ./assets/volume.png
 

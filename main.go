@@ -135,7 +135,7 @@ func checkMuteUnmute(btn1 *widget.Button, check bool) {
 }
 
 func main() {
-	// on load volume
+	// on load volume current value
 	vol, err := volume.GetVolume()
 	if err != nil {
 		fmt.Printf("Get volume failed: %+v", err)
